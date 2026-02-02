@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Solid Kodi Dev Forum</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <script type="module">
+    import { login, handleIncomingRedirect, getDefaultSession } from "https://cdn.skypack.dev/@inrupt/solid-client-authn-browser";
+    import {
+      createSolidDataset,
+      getSolidDataset,
+      saveSolidDatasetAt,
+      createThing,
+      setThing,
+      addStringNoLocale,
+      addUrl,
+      getThingAll
+    } from "https://cdn.skypack.dev/@inrupt/solid-client";
+
+    const session = getDefaultSession();
+    const INDEX_POD = "https://solidcommunity.net/public/kodi-forum/index/posts.ttl";
+
+    async function init() {
+      await handleIncomingRedirect();
+      if (session.info.isLoggedIn) {
+        document.getElementById("status").innerText = "Logado";
+        document.body.classList.add("logged");
+        loadIndex();
+      }
+    }
+
+    window.loginSolid = async () => {
+      const oidcIssuer = document.getElementById("issuer").value;
+      await login({ oidcIssuer, redirectUrl: window.location.href, clientName: "Kodi Solid Forum" });
+    };
+
+    window.createPost = async () => {
+      const title = document.getElementById("title").value;
+      const body = document.getElementById("body").value;
+      const base = session.info.webId.replace("profile/card#me", "kodi-forum/posts/");
+      const postUrl = base + crypto.randomUUID() + "/post.ttl";
+
+      let ds = createSolidDataset();
+      let post = createThing({ name: "post" });
+      post = addStringNoLocale(post, "http://schema.org/name", title);
+      post = addStringNoLocale(post, "http://schema.org/text", body);
+      post = addUrl(post, "http://schema.org/creator", session.info.webId);
+
+      ds = setThing(ds, post);
+      await saveSolidDatasetAt(postUrl, ds, { fetch: session.fetch });
+      await registerIndex(postUrl, title);
+      alert("Post publicado");
+    };
+
+    async function registerIndex(postUrl, title) {
+      let index;
+      try {
+        index = await getSolidDataset(INDEX_POD, { fetch: session.fetch });
+      } catch {
+        index = createSolidDataset();
+      }
+
+      let entry = createThing();
+      entry = addUrl(entry, "http://schema.org/url", postUrl);
+      entry = addStringNoLocale(entry, "http://schema.org/name", title);
+
+      index = setThing(index, entry);
+      await saveSolidDatasetAt(INDEX_POD, index, { fetch: session.fetch });
+    }
+
+    async function loadIndex() {
+      const index = await getSolidDataset(INDEX_POD);
+      const posts = getThingAll(index);
+      const list = document.getElementById("topics");
+      list.innerHTML = "";
+
+      for (const p of posts) {
+        const url = p.get("http://schema.org/url")?.value;
+        const name = p.get("http://schema.org/name")?.value;
+        if (url) {
+          const row = document.createElement("div");
+          row.className = "topic";
+          row.innerHTML = `<div class="topic-title">${name}</div><button onclick=\"viewPost('${url}')\">Abrir</button>`;
+          list.appendChild(row);
+        }
+      }
+    }
+
+    window.viewPost = async (url) => {
+      const ds = await getSolidDataset(url);
+      const thing = getThingAll(ds)[0];
+      document.getElementById("post-title").innerText = thing.get("http://schema.org/name")?.value;
+      document.getElementById("post-body").innerText = thing.get("http://schema.org/text")?.value;
+    };
+
+    init();
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f1115;
+      color: #e6e6e6;
+    }
+
+    header {
+      background: #151820;
+      padding: 14px 20px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #7aa2f7;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: calc(100vh - 52px);
+    }
+
+    aside {
+      background: #0b0d12;
+      border-right: 1px solid #222;
+      padding: 16px;
+    }
+
+    main {
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .topic {
+      background: #141822;
+      padding: 12px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .topic-title {
+      font-weight: 600;
+    }
+
+    button {
+      background: #7aa2f7;
+      border: none;
+      color: #000;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    textarea, input {
+      width: 100%;
+      background: #0b0d12;
+      color: #e6e6e6;
+      border: 1px solid #222;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .post-view {
+      background: #0b0d12;
+      padding: 16px;
+      border-radius: 6px;
+      margin-top: 20px;
+    }
+
+    .hidden { display: none; }
+    body.logged .login { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Solid Kodi Dev Forum</h1>
+    <div id="status" class="login">
+      <input id="issuer" placeholder="https://solidcommunity.net" />
+      <button onclick="loginSolid()">Login Solid</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <aside>
+      <h3>Novo tópico</h3>
+      <input id="title" placeholder="Título" />
+      <textarea id="body" placeholder="Conteúdo"></textarea>
+      <button onclick="createPost()">Publicar</button>
+    </aside>
+
+    <main>
+      <h2>Tópicos</h2>
+      <div id="topics"></div>
+
+      <div class="post-view">
+        <h3 id="post-title"></h3>
+        <pre id="post-body"></pre>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
