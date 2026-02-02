@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <script type="module">
-    import { login, handleIncomingRedirect, getDefaultSession } from "https://cdn.skypack.dev/@inrupt/solid-client-authn-browser";
     import {
       createSolidDataset,
       getSolidDataset,
@@ -16,7 +15,7 @@
       addStringNoLocale,
       addUrl,
       getThingAll
-    } from "https://cdn.skypack.dev/@inrupt/solid-client";
+    } from "https://cdn.jsdelivr.net/npm/@inrupt/solid-client/+esm";
 
     const session = getDefaultSession();
     const INDEX_POD = "https://solidcommunity.net/public/kodi-forum/index/posts.ttl";
